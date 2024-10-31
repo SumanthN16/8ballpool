@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pygame Pool</title>
+    <style>
+        canvas {
+            display: block;
+            margin: auto;
+            border: 1px solid black;
+        }
+        #buttons {
+            text-align: center;
+            margin-top: 20px;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="1200" height="678"></canvas>
+    <div id="buttons">
+        <button id="powerBtn">Power Up</button>
+        <button id="shootBtn">Shoot</button>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const powerBtn = document.getElementById('powerBtn');
+        const shootBtn = document.getElementById('shootBtn');
+
+        let isPoweringUp = false;
+        let isShooting = false;
+
+        // Function to draw the game state on the canvas
+        function drawGame(image) {
+            ctx.drawImage(image, 0, 0);
+        }
+
+        // Event listener for power button
+        powerBtn.addEventListener('mousedown', () => {
+            isPoweringUp = true;
+        });
+
+        powerBtn.addEventListener('mouseup', () => {
+            isPoweringUp = false;
+        });
+
+        // Event listener for shoot button
+        shootBtn.addEventListener('click', () => {
+            isShooting = true;
+        });
+
+        // Function to fetch game stream and update canvas
+        async function updateCanvas() {
+            const response = await fetch('/game_stream');
+            const reader = response.body.getReader();
+            const boundary = `--${response.headers.get('content-type').split('boundary=')[1]}`;
+
+            let chunks = [];
+            let chunk;
+            let gameLoopRunning = true;
+
+            while (gameLoopRunning) {
+                chunk = await reader.read();
+                chunks.push(chunk.value);
+
+                if (new TextDecoder().decode(chunks[0]).includes(boundary)) {
+                    chunks.shift();
+                    const blob = new Blob(chunks, { type: 'image/jpeg' });
+                    const imageURL = URL.createObjectURL(blob);
+                    const image = new Image();
+                    image.src = imageURL;
+
+                    image.onload = () => {
+                        drawGame(image);
+                    };
+
+                    chunks = [];
+                }
+
+                if (chunk.done) {
+                    gameLoopRunning = false;
+                }
+
+                if (isPoweringUp) {
+                    fetch('/power_up');
+                }
+
+                if (isShooting) {
+                    fetch('/shoot');
+                    isShooting = false;
+                }
+            }
+        }
+
+        // Start updating the canvas
+        updateCanvas();
+    </script>
+</body>
+</html>
